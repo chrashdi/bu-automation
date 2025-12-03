@@ -123,6 +123,7 @@ export default function EOLTrackerTable() {
         })
       )
 
+      // Only show components linked to products (not standalone manual components)
       // Sort by days remaining (expired first, then by days remaining ascending)
       componentsWithEOL.sort((a, b) => {
         if (a.daysRemaining === null && b.daysRemaining === null) return 0
@@ -170,7 +171,9 @@ export default function EOLTrackerTable() {
   if (components.length === 0) {
     return (
       <div className="text-center py-12">
-        <p className="text-gray-500">No components found. Add components to products to see EOL tracking.</p>
+        <p className="text-gray-500">
+          No components found. Add components to products to see EOL tracking.
+        </p>
       </div>
     )
   }

@@ -42,6 +42,13 @@ const COMMON_SLUGS = [
   { value: 'laravel', label: 'Laravel' },
 ]
 
+interface ManualComponent {
+  id: string
+  name: string
+  version: string
+  eol_date: string
+}
+
 export default function AddComponentModal({
   productId,
   productName,
@@ -52,14 +59,37 @@ export default function AddComponentModal({
   const [customSlug, setCustomSlug] = useState('')
   const [useCustomSlug, setUseCustomSlug] = useState(false)
   const [isManualEntry, setIsManualEntry] = useState(false)
+  const [selectedManualComponent, setSelectedManualComponent] = useState<string>('')
+  const [manualComponents, setManualComponents] = useState<ManualComponent[]>([])
   const [version, setVersion] = useState('')
-  const [manualVersion, setManualVersion] = useState('')
-  const [manualEolDate, setManualEolDate] = useState('')
   const [versions, setVersions] = useState<string[]>([])
   const [loadingVersions, setLoadingVersions] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const supabase = createClient()
+
+  // Load manual components when manual entry is enabled
+  useEffect(() => {
+    if (isManualEntry) {
+      loadManualComponents()
+    } else {
+      setManualComponents([])
+      setSelectedManualComponent('')
+    }
+  }, [isManualEntry])
+
+  // Update name and version when manual component is selected
+  useEffect(() => {
+    if (selectedManualComponent && manualComponents.length > 0) {
+      const manualComp = manualComponents.find(
+        (mc) => mc.id === selectedManualComponent
+      )
+      if (manualComp) {
+        setName(manualComp.name)
+        setVersion(manualComp.version)
+      }
+    }
+  }, [selectedManualComponent, manualComponents])
 
   // Fetch versions when slug changes (with debounce for custom slug)
   useEffect(() => {
@@ -70,7 +100,7 @@ export default function AddComponentModal({
     }
 
     const activeSlug = useCustomSlug ? customSlug : slug
-    
+
     if (!activeSlug) {
       setVersions([])
       setVersion('')
@@ -92,6 +122,25 @@ export default function AddComponentModal({
 
     return () => clearTimeout(timer)
   }, [slug, customSlug, useCustomSlug, isManualEntry])
+
+  const loadManualComponents = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('manual_components')
+        .select('*')
+        .order('name, version')
+
+      if (error) {
+        console.error('Error loading manual components:', error)
+        setManualComponents([])
+      } else {
+        setManualComponents(data || [])
+      }
+    } catch (err) {
+      console.error('Error loading manual components:', err)
+      setManualComponents([])
+    }
+  }
 
   const loadVersions = async (slugToLoad: string) => {
     setLoadingVersions(true)
@@ -158,21 +207,56 @@ export default function AddComponentModal({
       setUseCustomSlug(false)
       setVersion('')
       setVersions([])
+      setName('')
     } else {
-      // Clear manual fields
-      setManualVersion('')
-      setManualEolDate('')
+      // Clear manual selection
+      setSelectedManualComponent('')
+      loadManualComponents()
     }
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     if (isManualEntry) {
       // Manual entry validation
-      if (!name.trim() || !manualVersion.trim() || !manualEolDate.trim()) {
-        setError('All fields are required for manual entry')
+      if (!selectedManualComponent || !name.trim() || !version.trim()) {
+        setError('Please select a manual component')
         return
+      }
+
+      // Get the selected manual component to get EOL date
+      const manualComp = manualComponents.find(
+        (mc) => mc.id === selectedManualComponent
+      )
+
+      if (!manualComp) {
+        setError('Selected manual component not found')
+        return
+      }
+
+      setLoading(true)
+      setError(null)
+
+      try {
+        // Insert with manual EOL date
+        const { error: insertError } = await supabase.from('components').insert({
+          product_id: productId,
+          name: name.trim(),
+          slug: 'manual',
+          version: version.trim(),
+          manual_eol_date: manualComp.eol_date,
+        })
+
+        if (insertError) {
+          throw new Error('Failed to create component: ' + insertError.message)
+        }
+
+        onClose()
+      } catch (err: any) {
+        setError(err.message || 'An error occurred')
+      } finally {
+        setLoading(false)
       }
     } else {
       // API entry validation
@@ -181,28 +265,12 @@ export default function AddComponentModal({
         setError('All fields are required')
         return
       }
-    }
 
-    setLoading(true)
-    setError(null)
+      setLoading(true)
+      setError(null)
 
-    try {
-      if (isManualEntry) {
-        // Insert with manual EOL date
-        const { error: insertError } = await supabase.from('components').insert({
-          product_id: productId,
-          name: name.trim(),
-          slug: 'manual', // Special slug for manual entries
-          version: manualVersion.trim(),
-          manual_eol_date: manualEolDate.trim(), // Store manual EOL date
-        })
-
-        if (insertError) {
-          throw new Error('Failed to create component: ' + insertError.message)
-        }
-      } else {
+      try {
         // Regular API entry
-        const activeSlug = useCustomSlug ? customSlug.trim() : slug.trim()
         const { error: insertError } = await supabase.from('components').insert({
           product_id: productId,
           name: name.trim(),
@@ -213,13 +281,13 @@ export default function AddComponentModal({
         if (insertError) {
           throw new Error('Failed to create component: ' + insertError.message)
         }
-      }
 
-      onClose()
-    } catch (err: any) {
-      setError(err.message || 'An error occurred')
-    } finally {
-      setLoading(false)
+        onClose()
+      } catch (err: any) {
+        setError(err.message || 'An error occurred')
+      } finally {
+        setLoading(false)
+      }
     }
   }
 
@@ -240,24 +308,6 @@ export default function AddComponentModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label
-              htmlFor="component-name"
-              className="block text-sm font-medium text-black mb-1"
-            >
-              Display Name
-            </label>
-            <input
-              id="component-name"
-              type="text"
-              required
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
-              placeholder="e.g., Database Layer"
-            />
-          </div>
-
           {/* Manual Entry Checkbox */}
           <div className="flex items-center">
             <input
@@ -277,48 +327,84 @@ export default function AddComponentModal({
 
           {isManualEntry ? (
             <>
-              {/* Manual Version Input */}
+              {/* Manual Component Dropdown */}
               <div>
                 <label
-                  htmlFor="manual-version"
+                  htmlFor="manual-component-select"
                   className="block text-sm font-medium text-black mb-1"
                 >
-                  Version
+                  Select Manual Component
                 </label>
-                <input
-                  id="manual-version"
-                  type="text"
+                <select
+                  id="manual-component-select"
                   required
-                  value={manualVersion}
-                  onChange={(e) => setManualVersion(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
-                  placeholder="e.g., 12.2.0.1"
-                />
+                  value={selectedManualComponent}
+                  onChange={(e) => setSelectedManualComponent(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white text-black"
+                >
+                  <option value="">Select a manual component...</option>
+                  {manualComponents.map((mc) => (
+                    <option key={mc.id} value={mc.id}>
+                      {mc.name} v{mc.version} (EOL: {new Date(mc.eol_date).toLocaleDateString()})
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-gray-600 mt-1">
+                  {manualComponents.length === 0
+                    ? 'No manual components available. Add them in the Manual Components section.'
+                    : `Select from ${manualComponents.length} manual component(s)`}
+                </p>
+                {manualComponents.length === 0 && (
+                  <a
+                    href="/dashboard/manual-components"
+                    className="text-xs text-blue-600 hover:text-blue-700 underline mt-1 inline-block"
+                  >
+                    Go to Manual Components →
+                  </a>
+                )}
               </div>
 
-              {/* Manual EOL Date Input */}
-              <div>
-                <label
-                  htmlFor="manual-eol-date"
-                  className="block text-sm font-medium text-black mb-1"
-                >
-                  EOL Date
-                </label>
-                <input
-                  id="manual-eol-date"
-                  type="date"
-                  required
-                  value={manualEolDate}
-                  onChange={(e) => setManualEolDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
-                />
-                <p className="text-xs text-gray-600 mt-1">
-                  Enter the End of Life date for this component
-                </p>
-              </div>
+              {/* Display selected component info (read-only) */}
+              {selectedManualComponent && (
+                <div className="bg-gray-50 p-3 rounded-lg border border-gray-200">
+                  <p className="text-xs text-gray-600 mb-1">
+                    <strong>Component:</strong> {name}
+                  </p>
+                  <p className="text-xs text-gray-600 mb-1">
+                    <strong>Version:</strong> {version}
+                  </p>
+                  {manualComponents.find((mc) => mc.id === selectedManualComponent) && (
+                    <p className="text-xs text-gray-600">
+                      <strong>EOL Date:</strong>{' '}
+                      {new Date(
+                        manualComponents.find((mc) => mc.id === selectedManualComponent)!
+                          .eol_date
+                      ).toLocaleDateString()}
+                    </p>
+                  )}
+                </div>
+              )}
             </>
           ) : (
             <>
+              <div>
+                <label
+                  htmlFor="component-name"
+                  className="block text-sm font-medium text-black mb-1"
+                >
+                  Display Name
+                </label>
+                <input
+                  id="component-name"
+                  type="text"
+                  required
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500 text-black"
+                  placeholder="e.g., Database Layer"
+                />
+              </div>
+
               <div>
                 <div className="flex items-center justify-between mb-1">
                   <label
@@ -431,7 +517,7 @@ export default function AddComponentModal({
               disabled={
                 loading ||
                 (isManualEntry
-                  ? !name.trim() || !manualVersion.trim() || !manualEolDate.trim()
+                  ? !selectedManualComponent
                   : (!slug && !customSlug) || !version || loadingVersions)
               }
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"

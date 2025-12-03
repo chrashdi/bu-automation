@@ -1,20 +1,16 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Inter } from "next/font/google";
+import Script from "next/script";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const inter = Inter({
   subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
+  variable: "--font-inter",
 });
 
 export const metadata: Metadata = {
-  title: "EOL Sentinel",
-  description: "End of Life tracking dashboard for Private Equity IT auditing",
+  title: "TrilogyHQ - Product Management",
+  description: "Product Management Dashboard for EOL Tracking",
 };
 
 export default function RootLayout({
@@ -24,8 +20,24 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
+      <head>
+        <Script
+          id="fontawesome-config"
+          strategy="afterInteractive"
+          dangerouslySetInnerHTML={{
+            __html: "window.FontAwesomeConfig = { autoReplaceSvg: 'nest' };",
+          }}
+        />
+        <Script
+          src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/js/all.min.js"
+          crossOrigin="anonymous"
+          referrerPolicy="no-referrer"
+          strategy="afterInteractive"
+        />
+      </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${inter.variable} font-inter antialiased bg-gray-50`}
+        suppressHydrationWarning
       >
         {children}
       </body>

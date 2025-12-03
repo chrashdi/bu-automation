@@ -1,5 +1,9 @@
 import { createClient } from '@/utils/supabase/server'
 import { redirect } from 'next/navigation'
+import Sidebar from './components/Sidebar'
+import Header from './components/Header'
+import StatsCards from './components/StatsCards'
+import ProductGrid from './components/ProductGrid'
 
 export default async function DashboardPage() {
   const supabase = await createClient()
@@ -12,23 +16,15 @@ export default async function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-7xl mx-auto py-6 sm:px-6 lg:px-8">
-        <div className="px-4 py-6 sm:px-0">
-          <div className="border-4 border-dashed border-gray-200 rounded-lg p-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-4">
-              Welcome to EOL Sentinel
-            </h1>
-            <p className="text-gray-600 mb-4">
-              Logged in as: <span className="font-semibold">{user.email}</span>
-            </p>
-            <p className="text-gray-500">
-              Dashboard coming soon. This is where you'll manage products and track EOL status.
-            </p>
-          </div>
-        </div>
+    <div className="bg-gray-50 font-inter min-h-screen">
+      <Sidebar />
+      <div className="ml-64">
+        <Header />
+        <main className="p-8">
+          <StatsCards />
+          <ProductGrid />
+        </main>
       </div>
     </div>
   )
 }
-

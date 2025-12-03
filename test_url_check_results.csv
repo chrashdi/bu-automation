@@ -1,0 +1,4 @@
+URL,Status,HTTP Code,Error Message
+instance,Inactive,DNS Error,DNS resolution failed
+000.kayako.com,Inactive,402,HTTP 402
+0727.kayako.com,Inactive,402,HTTP 402

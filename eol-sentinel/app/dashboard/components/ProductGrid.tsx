@@ -9,6 +9,9 @@ interface Product {
   id: string
   name: string
   logo_url: string | null
+  arr: number | null
+  cost: number | null
+  customer_count: number | null
   created_at: string
 }
 
